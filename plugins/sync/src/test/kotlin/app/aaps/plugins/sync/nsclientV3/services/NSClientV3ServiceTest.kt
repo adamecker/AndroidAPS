@@ -2,17 +2,22 @@ package app.aaps.plugins.sync.nsclientV3.services
 
 import android.content.Intent
 import android.os.IBinder
+import app.aaps.core.interfaces.aps.IobTotal
+import app.aaps.core.interfaces.iob.IobCobCalculator
 import app.aaps.core.interfaces.nsclient.StoreDataForDb
 import app.aaps.core.interfaces.rx.events.EventNSClientNewLog
 import app.aaps.core.interfaces.ui.UiInteraction
 import app.aaps.core.keys.BooleanKey
+import app.aaps.core.keys.DoubleKey
 import app.aaps.core.keys.StringKey
+import app.aaps.plugins.sync.nsShared.NSAlarmObject
 import app.aaps.plugins.sync.nsShared.NsIncomingDataProcessor
 import app.aaps.plugins.sync.nsclient.data.NSDeviceStatusHandler
 import app.aaps.plugins.sync.nsclientV3.NSClientV3Plugin
 import app.aaps.plugins.sync.nsclientV3.keys.NsclientBooleanKey
 import app.aaps.shared.tests.TestBaseWithProfile
 import com.google.common.truth.Truth.assertThat
+import org.json.JSONObject
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.mockito.Mock
@@ -25,6 +30,7 @@ class NSClientV3ServiceTest : TestBaseWithProfile() {
     @Mock lateinit var uiInteraction: UiInteraction
     @Mock lateinit var nsDeviceStatusHandler: NSDeviceStatusHandler
     @Mock lateinit var nsClientV3Plugin: NSClientV3Plugin
+    @Mock lateinit var iobCobCalculator: IobCobCalculator
 
     private lateinit var sut: NSClientV3Service
 
@@ -42,6 +48,7 @@ class NSClientV3ServiceTest : TestBaseWithProfile() {
             it.storeDataForDb = storeDataForDb
             it.uiInteraction = uiInteraction
             it.nsDeviceStatusHandler = nsDeviceStatusHandler
+            it.iobCobCalculator = iobCobCalculator
         }
     }
 
@@ -220,5 +227,59 @@ class NSClientV3ServiceTest : TestBaseWithProfile() {
         assertThat(events.any { it.action == "► WS" && it.logText?.contains("do connect alarm TestReason") ?: false }).isTrue()
         subscription.dispose()
         sut.shutdownWebsockets()
+    }
+
+    private fun lowAlarm(level: Int = 1) = NSAlarmObject(JSONObject().put("eventName", "low").put("level", level))
+    private fun highAlarm() = NSAlarmObject(JSONObject().put("eventName", "high"))
+
+    private fun mockIobGate(iob: Double, threshold: Double = 0.0, enabled: Boolean = true) {
+        whenever(preferences.get(BooleanKey.NsClientAlarmLowGateOnIob)).thenReturn(enabled)
+        whenever(preferences.get(DoubleKey.NsClientAlarmLowIobThreshold)).thenReturn(threshold)
+        whenever(iobCobCalculator.calculateIobFromBolus()).thenReturn(IobTotal(time = 0, iob = iob))
+        whenever(iobCobCalculator.calculateIobFromTempBasalsIncludingConvertedExtended()).thenReturn(IobTotal(time = 0, basaliob = 0.0))
+    }
+
+    @Test
+    fun `shouldSuppressLowAlarm fires when gate disabled`() {
+        mockIobGate(iob = -1.0, enabled = false)
+        assertThat(sut.shouldSuppressLowAlarm(lowAlarm())).isFalse()
+    }
+
+    @Test
+    fun `shouldSuppressLowAlarm ignores high alarms`() {
+        mockIobGate(iob = -1.0)
+        assertThat(sut.shouldSuppressLowAlarm(highAlarm())).isFalse()
+    }
+
+    @Test
+    fun `shouldSuppressLowAlarm fires when IOB above threshold`() {
+        mockIobGate(iob = 0.5, threshold = 0.0)
+        assertThat(sut.shouldSuppressLowAlarm(lowAlarm())).isFalse()
+    }
+
+    @Test
+    fun `shouldSuppressLowAlarm suppresses when IOB at threshold`() {
+        mockIobGate(iob = 0.0, threshold = 0.0)
+        assertThat(sut.shouldSuppressLowAlarm(lowAlarm())).isTrue()
+    }
+
+    @Test
+    fun `shouldSuppressLowAlarm suppresses when IOB below threshold`() {
+        mockIobGate(iob = -0.3, threshold = 0.0)
+        assertThat(sut.shouldSuppressLowAlarm(lowAlarm())).isTrue()
+    }
+
+    @Test
+    fun `shouldSuppressLowAlarm fires for urgent level low alarm`() {
+        mockIobGate(iob = -1.0)
+        assertThat(sut.shouldSuppressLowAlarm(lowAlarm(level = 2))).isFalse()
+    }
+
+    @Test
+    fun `shouldSuppressLowAlarm fires when IOB calculation fails`() {
+        whenever(preferences.get(BooleanKey.NsClientAlarmLowGateOnIob)).thenReturn(true)
+        whenever(preferences.get(DoubleKey.NsClientAlarmLowIobThreshold)).thenReturn(0.0)
+        whenever(iobCobCalculator.calculateIobFromBolus()).thenThrow(RuntimeException("no data"))
+        assertThat(sut.shouldSuppressLowAlarm(lowAlarm())).isFalse()
     }
 }

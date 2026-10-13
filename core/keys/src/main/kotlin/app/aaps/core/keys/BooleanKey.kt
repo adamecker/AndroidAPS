@@ -99,6 +99,7 @@ enum class BooleanKey(
     NsClientAcceptTbrEb("ns_receive_tbr_eb", false, showInNsClientMode = false, engineeringModeOnly = true),
     NsClientNotificationsFromAlarms("ns_alarms", false, calculatedDefaultValue = true),
     NsClientNotificationsFromAnnouncements("ns_announcements", false, calculatedDefaultValue = true),
+    NsClientAlarmLowGateOnIob("ns_alarm_low_gate_on_iob", false),
     NsClientUseCellular("ns_cellular", true),
     NsClientUseRoaming("ns_allow_roaming", true, dependency = NsClientUseCellular),
     NsClientUseWifi("ns_wifi", true),

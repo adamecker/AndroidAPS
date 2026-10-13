@@ -70,6 +70,8 @@
     <string name="ns_alarm_options">Alarm options</string>
     <string name="ns_alarms">Create notifications from NS alarms</string>
     <string name="ns_announcements">Create notifications from NS announcements</string>
+    <string name="ns_alarm_low_gate_on_iob">Only alarm low BG if IOB above threshold</string>
+    <string name="ns_alarm_low_iob_threshold">IOB threshold [U]</string>
     <string name="ns_alarm_stale_data_value_label">Stale data threshold [min]</string>
     <string name="ns_alarm_urgent_stale_data_value_label">Urgent stale data threshold [min]</string>
     <string name="ns_log_app_started_event">Log app start to NS</string>

@@ -7,6 +7,7 @@ import android.os.IBinder
 import android.os.PowerManager
 import androidx.annotation.OpenForTesting
 import app.aaps.core.interfaces.configuration.Config
+import app.aaps.core.interfaces.iob.IobCobCalculator
 import app.aaps.core.interfaces.logging.AAPSLogger
 import app.aaps.core.interfaces.logging.LTag
 import app.aaps.core.interfaces.notifications.Notification
@@ -19,6 +20,7 @@ import app.aaps.core.interfaces.rx.events.EventNSClientNewLog
 import app.aaps.core.interfaces.ui.UiInteraction
 import app.aaps.core.interfaces.utils.fabric.FabricPrivacy
 import app.aaps.core.keys.BooleanKey
+import app.aaps.core.keys.DoubleKey
 import app.aaps.core.keys.LongComposedKey
 import app.aaps.core.keys.StringKey
 import app.aaps.core.keys.interfaces.Preferences
@@ -57,6 +59,7 @@ class NSClientV3Service : DaggerService() {
     @Inject lateinit var storeDataForDb: StoreDataForDb
     @Inject lateinit var uiInteraction: UiInteraction
     @Inject lateinit var nsDeviceStatusHandler: NSDeviceStatusHandler
+    @Inject lateinit var iobCobCalculator: IobCobCalculator
 
     private val disposable = CompositeDisposable()
 
@@ -307,8 +310,37 @@ class NSClientV3Service : DaggerService() {
         aapsLogger.debug(LTag.NSCLIENT, data.toString())
         if (preferences.get(BooleanKey.NsClientNotificationsFromAlarms)) {
             val snoozedTo = preferences.get(LongComposedKey.NotificationSnoozedTo, data.optString("level"))
-            if (snoozedTo == 0L || System.currentTimeMillis() > snoozedTo)
-                uiInteraction.addNotificationWithAction(NSAlarmObject(data))
+            if (snoozedTo == 0L || System.currentTimeMillis() > snoozedTo) {
+                val nsAlarm = NSAlarmObject(data)
+                // IOB gate applies to non-urgent alarms only; urgent alarms (onUrgentAlarm) are never gated
+                if (!shouldSuppressLowAlarm(nsAlarm))
+                    uiInteraction.addNotificationWithAction(nsAlarm)
+            }
+        }
+    }
+
+    /**
+     * IOB gate for low alarms: suppress a warning-level low alarm when current IOB is at or below
+     * the configured threshold. Urgent alarms are never gated (neither via onUrgentAlarm nor a
+     * level-2 alarm arriving on the regular channel). Fail-safe: any error (or disabled gate)
+     * fires the alarm.
+     */
+    @OpenForTesting
+    fun shouldSuppressLowAlarm(nsAlarm: NSAlarm): Boolean {
+        if (!nsAlarm.low) return false
+        if (nsAlarm.level >= 2) return false // urgent: never gate
+        if (!preferences.get(BooleanKey.NsClientAlarmLowGateOnIob)) return false
+        return try {
+            val threshold = preferences.get(DoubleKey.NsClientAlarmLowIobThreshold)
+            val iob = iobCobCalculator.calculateIobFromBolus().iob +
+                iobCobCalculator.calculateIobFromTempBasalsIncludingConvertedExtended().basaliob
+            val suppress = iob <= threshold
+            aapsLogger.debug(LTag.NSCLIENT, "Low alarm IOB gate: iob=$iob threshold=$threshold suppress=$suppress")
+            if (suppress) rxBus.send(EventNSClientNewLog("◄ ALARM", "low alarm suppressed (IOB $iob <= $threshold)"))
+            suppress
+        } catch (e: Exception) {
+            aapsLogger.error(LTag.NSCLIENT, "Low alarm IOB gate failed, firing alarm", e)
+            false
         }
     }
 

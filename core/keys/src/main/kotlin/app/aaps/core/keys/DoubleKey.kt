@@ -62,4 +62,6 @@ enum class DoubleKey(
     ActivityScaleFactor("activity_scale_factor", 1.0, 0.0, 1.5, defaultedBySM = true, dependency = BooleanKey.ActivityMonitorDetection),
     InactivityScaleFactor("inactivity_scale_factor", 1.0, 0.0, 1.5, defaultedBySM = true, dependency = BooleanKey.ActivityMonitorDetection),
 
+    NsClientAlarmLowIobThreshold("ns_alarm_low_iob_threshold", 0.0, -20.0, 20.0, dependency = BooleanKey.NsClientAlarmLowGateOnIob),
+
 }

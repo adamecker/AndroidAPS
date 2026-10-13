@@ -53,6 +53,7 @@ import app.aaps.core.interfaces.utils.DecimalFormatter
 import app.aaps.core.interfaces.utils.fabric.FabricPrivacy
 import app.aaps.core.keys.BooleanKey
 import app.aaps.core.keys.BooleanNonKey
+import app.aaps.core.keys.DoubleKey
 import app.aaps.core.keys.IntKey
 import app.aaps.core.keys.LongNonKey
 import app.aaps.core.keys.StringKey
@@ -62,6 +63,7 @@ import app.aaps.core.nssdk.interfaces.NSAndroidClient
 import app.aaps.core.nssdk.remotemodel.LastModified
 import app.aaps.core.validators.DefaultEditTextValidator
 import app.aaps.core.validators.EditTextValidator
+import app.aaps.core.validators.preferences.AdaptiveDoublePreference
 import app.aaps.core.validators.preferences.AdaptiveIntPreference
 import app.aaps.core.validators.preferences.AdaptiveStringPreference
 import app.aaps.core.validators.preferences.AdaptiveSwitchPreference
@@ -859,6 +861,8 @@ class NSClientV3Plugin @Inject constructor(
                 title = rh.gs(R.string.ns_alarm_options)
                 addPreference(AdaptiveSwitchPreference(ctx = context, booleanKey = BooleanKey.NsClientNotificationsFromAlarms, title = R.string.ns_alarms))
                 addPreference(AdaptiveSwitchPreference(ctx = context, booleanKey = BooleanKey.NsClientNotificationsFromAnnouncements, title = R.string.ns_announcements))
+                addPreference(AdaptiveSwitchPreference(ctx = context, booleanKey = BooleanKey.NsClientAlarmLowGateOnIob, title = R.string.ns_alarm_low_gate_on_iob))
+                addPreference(AdaptiveDoublePreference(ctx = context, doubleKey = DoubleKey.NsClientAlarmLowIobThreshold, title = R.string.ns_alarm_low_iob_threshold))
                 addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.NsClientAlarmStaleData, title = R.string.ns_alarm_stale_data_value_label))
                 addPreference(AdaptiveIntPreference(ctx = context, intKey = IntKey.NsClientUrgentAlarmStaleData, title = R.string.ns_alarm_urgent_stale_data_value_label))
             })
